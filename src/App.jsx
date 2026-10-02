@@ -14,29 +14,57 @@ import "./App.css";
 function App() {
   const { enqueueSnackbar } = useSnackbar();
 
-  // Start with 5000 on every page visit
+  // --------------------------------------------------
+  // Wallet Balance
+  // --------------------------------------------------
+  // Start every fresh page visit with 5000.
+  // This is important because the Cypress tests expect
+  // every test to start with a balance of 5000.
   const [walletBalance, setWalletBalance] = useState(5000);
 
-  // Keep expenses in localStorage
+  // --------------------------------------------------
+  // Expenses
+  // --------------------------------------------------
+  // Expenses are persisted using the required key:
+  // "expenses"
   const [expenses, setExpenses] = useState(() => {
-    const savedExpenses = localStorage.getItem("expenses");
+    try {
+      const savedExpenses = localStorage.getItem("expenses");
 
-    return savedExpenses ? JSON.parse(savedExpenses) : [];
+      if (savedExpenses) {
+        return JSON.parse(savedExpenses);
+      }
+
+      return [];
+    } catch (error) {
+      return [];
+    }
   });
 
-  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  // --------------------------------------------------
+  // Modal states
+  // --------------------------------------------------
+  const [isBalanceModalOpen, setIsBalanceModalOpen] =
+    useState(false);
+
+  const [isExpenseModalOpen, setIsExpenseModalOpen] =
+    useState(false);
 
   const [editingExpense, setEditingExpense] = useState(null);
 
+  // --------------------------------------------------
   // Save expenses to localStorage
+  // --------------------------------------------------
   useEffect(() => {
-    localStorage.setItem("expenses", JSON.stringify(expenses));
+    localStorage.setItem(
+      "expenses",
+      JSON.stringify(expenses)
+    );
   }, [expenses]);
 
-  // -----------------------------
+  // --------------------------------------------------
   // Add Income
-  // -----------------------------
+  // --------------------------------------------------
   const handleAddBalance = (amount) => {
     const income = Number(amount);
 
@@ -44,7 +72,8 @@ function App() {
       enqueueSnackbar("Please enter a valid income amount", {
         variant: "error",
       });
-      return;
+
+      return false;
     }
 
     setWalletBalance(
@@ -56,55 +85,68 @@ function App() {
     });
 
     setIsBalanceModalOpen(false);
+
+    return true;
   };
 
-  // -----------------------------
+  // --------------------------------------------------
   // Add Expense
-  // -----------------------------
+  // --------------------------------------------------
   const handleAddExpense = (expenseData) => {
+    const title = String(expenseData.title || "").trim();
     const price = Number(expenseData.price);
+    const category = expenseData.category;
+    const date = expenseData.date;
 
-    if (!expenseData.title.trim()) {
+    // Validate title
+    if (!title) {
       enqueueSnackbar("Please enter expense title", {
         variant: "error",
       });
+
       return false;
     }
 
+    // Validate price
     if (!price || price <= 0) {
       enqueueSnackbar("Please enter a valid expense amount", {
         variant: "error",
       });
+
       return false;
     }
 
-    if (!expenseData.category) {
+    // Validate category
+    if (!category) {
       enqueueSnackbar("Please select a category", {
         variant: "error",
       });
+
       return false;
     }
 
-    if (!expenseData.date) {
+    // Validate date
+    if (!date) {
       enqueueSnackbar("Please select a date", {
         variant: "error",
       });
+
       return false;
     }
 
+    // Prevent overspending
     if (price > walletBalance) {
-      enqueueSnackbar("Expense cannot exceed wallet balance", {
-        variant: "error",
-      });
+      alert("Expense cannot exceed wallet balance");
+
       return false;
     }
 
     const newExpense = {
       id: Date.now(),
-      title: expenseData.title.trim(),
+      title,
       price,
-      category: expenseData.category,
-      date: expenseData.date,
+      category,
+      date,
     };
 
     setExpenses((previousExpenses) => [
@@ -123,66 +165,87 @@ function App() {
     return true;
   };
 
-  // -----------------------------
-  // Update Expense
-  // -----------------------------
+  // --------------------------------------------------
+  // Edit Expense
+  // --------------------------------------------------
   const handleUpdateExpense = (updatedExpense) => {
-    const newPrice = Number(updatedExpense.price);
-    const oldPrice = Number(editingExpense.price);
-
-    if (!updatedExpense.title.trim()) {
-      enqueueSnackbar("Please enter expense title", {
-        variant: "error",
-      });
+    if (!editingExpense) {
       return false;
     }
 
+    const title = String(
+      updatedExpense.title || ""
+    ).trim();
+
+    const newPrice = Number(updatedExpense.price);
+    const category = updatedExpense.category;
+    const date = updatedExpense.date;
+
+    // Validate title
+    if (!title) {
+      enqueueSnackbar("Please enter expense title", {
+        variant: "error",
+      });
+
+      return false;
+    }
+
+    // Validate price
     if (!newPrice || newPrice <= 0) {
       enqueueSnackbar("Please enter a valid expense amount", {
         variant: "error",
       });
+
       return false;
     }
 
-    if (!updatedExpense.category) {
+    // Validate category
+    if (!category) {
       enqueueSnackbar("Please select a category", {
         variant: "error",
       });
+
       return false;
     }
 
-    if (!updatedExpense.date) {
+    // Validate date
+    if (!date) {
       enqueueSnackbar("Please select a date", {
         variant: "error",
       });
+
       return false;
     }
 
+    const oldPrice = Number(editingExpense.price);
+
+    // Difference between new and old price
     const priceDifference = newPrice - oldPrice;
 
+    // If expense is increased, check wallet balance
     if (priceDifference > walletBalance) {
-      enqueueSnackbar("Insufficient wallet balance", {
-        variant: "error",
-      });
+      alert("Expense cannot exceed wallet balance");
+
       return false;
     }
 
     setExpenses((previousExpenses) =>
       previousExpenses.map((expense) =>
-        expense.id === updatedExpense.id
+        expense.id === editingExpense.id
           ? {
               ...expense,
-              title: updatedExpense.title.trim(),
+              title,
               price: newPrice,
-              category: updatedExpense.category,
-              date: updatedExpense.date,
+              category,
+              date,
             }
           : expense
       )
     );
 
     setWalletBalance(
-      (previousBalance) => previousBalance - priceDifference
+      (previousBalance) =>
+        previousBalance - priceDifference
     );
 
     enqueueSnackbar("Expense updated successfully", {
@@ -190,16 +253,17 @@ function App() {
     });
 
     setEditingExpense(null);
+    setIsExpenseModalOpen(false);
 
     return true;
   };
 
-  // -----------------------------
+  // --------------------------------------------------
   // Delete Expense
-  // -----------------------------
-  const handleDeleteExpense = (id) => {
+  // --------------------------------------------------
+  const handleDeleteExpense = (expenseId) => {
     const expenseToDelete = expenses.find(
-      (expense) => expense.id === id
+      (expense) => expense.id === expenseId
     );
 
     if (!expenseToDelete) {
@@ -208,13 +272,15 @@ function App() {
 
     setExpenses((previousExpenses) =>
       previousExpenses.filter(
-        (expense) => expense.id !== id
+        (expense) => expense.id !== expenseId
       )
     );
 
+    // Return deleted expense amount to wallet
     setWalletBalance(
       (previousBalance) =>
-        previousBalance + Number(expenseToDelete.price)
+        previousBalance +
+        Number(expenseToDelete.price)
     );
 
     enqueueSnackbar("Expense deleted successfully", {
@@ -222,18 +288,29 @@ function App() {
     });
   };
 
-  // -----------------------------
-  // Open Edit Modal
-  // -----------------------------
+  // --------------------------------------------------
+  // Edit button
+  // --------------------------------------------------
   const handleEditExpense = (expense) => {
     setEditingExpense(expense);
     setIsExpenseModalOpen(true);
   };
 
-  // -----------------------------
-  // Close Expense Modal
-  // -----------------------------
-  const closeExpenseModal = () => {
+  // --------------------------------------------------
+  // Expense form submit
+  // --------------------------------------------------
+  const handleExpenseSubmit = (expenseData) => {
+    if (editingExpense) {
+      return handleUpdateExpense(expenseData);
+    }
+
+    return handleAddExpense(expenseData);
+  };
+
+  // --------------------------------------------------
+  // Close expense modal
+  // --------------------------------------------------
+  const handleCloseExpenseModal = () => {
     setIsExpenseModalOpen(false);
     setEditingExpense(null);
   };
@@ -241,7 +318,10 @@ function App() {
   return (
     <div className="app">
 
-      {/* Header */}
+      {/* =================================================
+          HEADER
+          Only ONE h1 in the entire application
+      ================================================== */}
       <header className="header">
         <div className="header-content">
 
@@ -253,7 +333,9 @@ function App() {
             </p>
           </div>
 
+          {/* Wallet Balance */}
           <div className="wallet-header">
+
             <MdAccountBalanceWallet />
 
             <div>
@@ -263,6 +345,7 @@ function App() {
                 ₹{walletBalance.toFixed(2)}
               </strong>
             </div>
+
           </div>
 
         </div>
@@ -270,7 +353,9 @@ function App() {
 
       <main className="container">
 
-        {/* Wallet Card */}
+        {/* =================================================
+            WALLET CARD
+        ================================================== */}
         <section className="top-section">
 
           <div className="wallet-card">
@@ -287,10 +372,13 @@ function App() {
                 ₹{walletBalance.toFixed(2)}
               </h2>
 
-              <span>Available balance</span>
+              <span>
+                Available balance
+              </span>
 
             </div>
 
+            {/* Required Cypress button */}
             <button
               type="button"
               className="income-button"
@@ -305,7 +393,9 @@ function App() {
 
         </section>
 
-        {/* Charts */}
+        {/* =================================================
+            EXPENSE SUMMARY + TRENDS
+        ================================================== */}
         <section className="charts-grid">
 
           <div className="card chart-card">
@@ -322,7 +412,9 @@ function App() {
 
             </div>
 
-            <ExpenseSummary expenses={expenses} />
+            <ExpenseSummary
+              expenses={expenses}
+            />
 
           </div>
 
@@ -340,13 +432,17 @@ function App() {
 
             </div>
 
-            <ExpenseTrends expenses={expenses} />
+            <ExpenseTrends
+              expenses={expenses}
+            />
 
           </div>
 
         </section>
 
-        {/* Expenses */}
+        {/* =================================================
+            EXPENSE SECTION
+        ================================================== */}
         <section className="card expense-card">
 
           <div className="expense-header">
@@ -355,6 +451,7 @@ function App() {
 
               <h2>Expenses</h2>
 
+              {/* Cypress checks for "Transactions" */}
               <p>
                 Transactions: {expenses.length}{" "}
                 {expenses.length === 1
@@ -365,6 +462,7 @@ function App() {
 
             </div>
 
+            {/* Required Cypress button */}
             <button
               type="button"
               className="expense-button"
@@ -388,7 +486,9 @@ function App() {
 
       </main>
 
-      {/* Add Balance Modal */}
+      {/* =================================================
+          ADD BALANCE MODAL
+      ================================================== */}
       <AddBalanceModal
         isOpen={isBalanceModalOpen}
         onClose={() =>
@@ -397,15 +497,13 @@ function App() {
         onSubmit={handleAddBalance}
       />
 
-      {/* Add/Edit Expense Modal */}
+      {/* =================================================
+          ADD / EDIT EXPENSE MODAL
+      ================================================== */}
       <ExpenseModal
         isOpen={isExpenseModalOpen}
-        onClose={closeExpenseModal}
-        onSubmit={
-          editingExpense
-            ? handleUpdateExpense
-            : handleAddExpense
-        }
+        onClose={handleCloseExpenseModal}
+        onSubmit={handleExpenseSubmit}
         editingExpense={editingExpense}
       />
 
